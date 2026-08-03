@@ -111,7 +111,7 @@ public partial class BangumiApi(ArchiveData archive, OAuthStore store, Logger<Ba
 #pragma warning restore CA2000, CA5399, CA5400
         httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Jellyfin.Plugin.Bangumi", _plugin.Version.ToString()));
         httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("(https://github.com/kookxiang/jellyfin-plugin-bangumi)"));
+            new ProductInfoHeaderValue("(https://github.com/atwist227/jellyfin-plugin-bangumi)"));
         httpClient.Timeout = TimeSpan.FromMilliseconds(_plugin.Configuration.RequestTimeout);
         return httpClient;
     }

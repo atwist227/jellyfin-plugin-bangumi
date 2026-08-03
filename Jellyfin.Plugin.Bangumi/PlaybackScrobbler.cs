@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.Bangumi.Configuration;
 using Jellyfin.Plugin.Bangumi.Model;
 using Jellyfin.Plugin.Bangumi.OAuth;
+using Jellyfin.Plugin.Bangumi.ReverseSync;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Entities.Movies;
@@ -15,7 +16,12 @@ using CollectionType = Jellyfin.Plugin.Bangumi.Model.CollectionType;
 
 namespace Jellyfin.Plugin.Bangumi;
 
-public class PlaybackScrobbler(IUserDataManager userDataManager, OAuthStore store, BangumiApi api, Logger<PlaybackScrobbler> log) : IHostedService
+public class PlaybackScrobbler(
+    IUserDataManager userDataManager,
+    OAuthStore store,
+    BangumiApi api,
+    ReverseSyncWriteGuard reverseSyncWriteGuard,
+    Logger<PlaybackScrobbler> log) : IHostedService
 {
     private static PluginConfiguration Configuration => Plugin.Instance!.Configuration;
 
@@ -33,6 +39,12 @@ public class PlaybackScrobbler(IUserDataManager userDataManager, OAuthStore stor
 
     private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e)
     {
+        if (reverseSyncWriteGuard.IsSuppressed(e.UserId, e.Item.Id))
+        {
+            log.Debug("反向同步写入已抑制出站上报: 用户 #{UserId}, 项目 #{ItemId}", e.UserId, e.Item.Id);
+            return;
+        }
+
         switch (e.SaveReason)
         {
             case UserDataSaveReason.TogglePlayed when e.UserData.Played:
