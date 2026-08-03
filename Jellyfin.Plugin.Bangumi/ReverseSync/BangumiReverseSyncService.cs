@@ -84,6 +84,17 @@ public sealed class BangumiReverseSyncService(
 
                 try
                 {
+                    if (string.IsNullOrWhiteSpace(oauthUser.UserName))
+                    {
+                        await oauthUser.GetProfile(api, cancellationToken);
+                        if (string.IsNullOrWhiteSpace(oauthUser.UserName))
+                            throw new InvalidOperationException("Bangumi 账号资料缺少 username");
+
+                        oauthStore.Set(storedUserId, oauthUser);
+                        oauthStore.Save();
+                        log.Info("已为 Jellyfin 用户 #{UserId} 补全 Bangumi 账号资料", userId);
+                    }
+
                     var userState = state.Users.GetValueOrDefault(storedUserId) ?? new ReverseSyncUserState();
                     var result = await SyncUserAsync(
                         jellyfinUser,
