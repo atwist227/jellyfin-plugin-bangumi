@@ -33,6 +33,8 @@ public partial class OAuthUser
         var user = await api.GetAccountInfo(AccessToken, cancellationToken);
         if (user == null)
             return;
+        UserId = user.Id;
+        UserName = user.UserName;
         Avatar = user.UserAvatar.Large;
         NickName = user.NickName;
         ProfileUrl = user.URL;
