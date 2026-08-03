@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Jellyfin.Plugin.Bangumi.Model;
+using Jellyfin.Plugin.Bangumi.OAuth;
 using Jellyfin.Plugin.Bangumi.ReverseSync;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -10,6 +11,19 @@ namespace Jellyfin.Plugin.Bangumi.Test;
 [TestClass]
 public class ReverseSync
 {
+    [TestMethod]
+    public void OAuthWithoutLegacyUsernameIsAvailable()
+    {
+        var oauth = new OAuthUser
+        {
+            AccessToken = "token",
+            UserName = "",
+            ExpireTime = DateTime.Now.AddHours(1)
+        };
+
+        Assert.IsTrue(oauth.Available);
+    }
+
     [TestMethod]
     public void ExactWatchedEpisodeIsPlanned()
     {
