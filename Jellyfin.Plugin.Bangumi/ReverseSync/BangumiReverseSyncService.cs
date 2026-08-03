@@ -75,7 +75,7 @@ public sealed class BangumiReverseSyncService(
                     continue;
                 }
 
-                if (oauthUser.Expired || string.IsNullOrWhiteSpace(oauthUser.AccessToken) || string.IsNullOrWhiteSpace(oauthUser.UserName))
+                if (!oauthUser.Available)
                 {
                     usersFailed++;
                     log.Warn("用户 #{UserId} 的 Bangumi OAuth 已过期或资料不完整", userId);

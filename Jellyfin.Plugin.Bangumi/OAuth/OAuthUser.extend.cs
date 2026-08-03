@@ -25,6 +25,9 @@ public partial class OAuthUser
     [JsonIgnore]
     public bool Expired => ExpireTime < DateTime.Now;
 
+    [JsonIgnore]
+    public bool Available => !Expired && !string.IsNullOrWhiteSpace(AccessToken);
+
     public async Task GetProfile(BangumiApi api, CancellationToken cancellationToken = default)
     {
         var user = await api.GetAccountInfo(AccessToken, cancellationToken);
