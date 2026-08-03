@@ -95,6 +95,28 @@
                                     </div>
                                 </div>
                                 <div class="bangumi-sync-subsection">
+                                    <h3 class="bangumi-settings-subheading">Bangumi 反向同步</h3>
+                                    <div class="selectContainer">
+                                        <div class="checkboxContainer checkboxContainer-withDescription">
+                                            <label class="emby-checkbox-label">
+                                                <input id="EnableReversePlaybackSync" is="emby-checkbox" type="checkbox" />
+                                                <span>每 30 分钟从 Bangumi 拉取已看状态</span>
+                                            </label>
+                                            <div class="fieldDescription">只会把 Bangumi 已看的精确 Episode ID 标为 Jellyfin 已播放；不会撤销已看，也不会改变单集续播位置。可先在计划任务中运行“预览 Bangumi 反向同步”。</div>
+                                        </div>
+                                    </div>
+                                    <div class="selectContainer">
+                                        <label class="selectLabel" for="ReverseSyncFullIntervalDays">完整核对间隔</label>
+                                        <select class="emby-select-withcolor emby-select" id="ReverseSyncFullIntervalDays" is="emby-select">
+                                            <option value="1">1 天</option>
+                                            <option value="3">3 天</option>
+                                            <option value="7">7 天（推荐）</option>
+                                            <option value="14">14 天</option>
+                                        </select>
+                                        <div class="fieldDescription">增量任务比较收藏摘要；完整核对会补齐 SP、OVA 或总数不变的分集调整。</div>
+                                    </div>
+                                </div>
+                                <div class="bangumi-sync-subsection">
                                     <h3 class="bangumi-settings-subheading">NSFW 条目上报</h3>
                                     <div class="selectContainer">
                                         <div class="checkboxContainer checkboxContainer-withDescription">

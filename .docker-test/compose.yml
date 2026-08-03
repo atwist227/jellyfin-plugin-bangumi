@@ -1,0 +1,15 @@
+services:
+  jellyfin-bangumi-test:
+    image: jellyfin/jellyfin:10.11.11
+    container_name: jellyfin-bangumi-test
+    restart: "no"
+    ports:
+      - "127.0.0.1:8097:8096"
+    environment:
+      JELLYFIN_PublishedServerUrl: http://127.0.0.1:8097
+    volumes:
+      - ./config:/config
+      - ./cache:/cache
+      - ./media:/media:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

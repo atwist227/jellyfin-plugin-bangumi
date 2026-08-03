@@ -1,4 +1,4 @@
-name: 'Bangumi Plugin'
+name: Bangumi Plugin CI
 
 on:
   push:
@@ -8,96 +8,22 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
-    name: Build and Test Plugin
+    name: Restore, Build and Test
     runs-on: ubuntu-latest
-    outputs:
-      abi-version: ${{ steps.abi-version.outputs.version }}
-      version: ${{ steps.meta.outputs.tag }}.${{ steps.meta.outputs.distance }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Resolve MetaData
-        id: meta
-        uses: proudust/gh-describe@v2
-        with:
-          exclude: ci
-      - name: Patch version
-        run: sed -i "/Version/s/>.*</>${{ steps.meta.outputs.tag }}.${{ steps.meta.outputs.distance }}</" Directory.Build.props
       - name: Setup .NET 9.x
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9
+          dotnet-version: 9.x
       - name: Restore NuGet Packages
         run: dotnet restore
-      - name: .NET Test
-        run: dotnet test --configuration Release Jellyfin.Plugin.Bangumi.Test
-      - name: .NET Publish
-        run: dotnet publish --configuration Release --output publish Jellyfin.Plugin.Bangumi
-      - name: Resolve Target ABI Version
-        id: abi-version
-        shell: pwsh
-        run: |
-          $dll = Get-ChildItem -Path ~/.nuget/packages/jellyfin.controller -Filter "MediaBrowser.Controller.dll" -Recurse | Select-Object -First 1
-          $version = [System.Reflection.AssemblyName]::GetAssemblyName($dll.FullName).Version.ToString()
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-      - uses: actions/upload-artifact@v4
-        with:
-          name: jellyfin-plugin
-          path: publish/*.dll
-      - name: .NET Publish (Emby)
-        run: |
-          rm -rf publish
-          dotnet publish --configuration Release --output publish Emby.Plugin.Bangumi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: emby-plugin
-          path: publish/*.dll
-  release:
-    name: Upload to GitHub Release
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: jellyfin-plugin
-          path: jellyfin
-      - uses: actions/download-artifact@v4
-        with:
-          name: emby-plugin
-          path: emby
-      - name: Generate Jellyfin Plugin Metadata
-        shell: pwsh
-        run: |
-          @{
-              category = "Metadata"
-              changelog = ""
-              description = "Jellyfin bgm.tv 数据源插件，用于拉取中文番剧信息及图片。"
-              guid = "41b59f1b-a6cf-474a-b416-785379cbd856"
-              name = "Bangumi"
-              overview = "bgm.tv metadata provider for Jellyfin"
-              owner = "kookxiang"
-              targetAbi = "${{ needs.build.outputs.abi-version }}"
-              timestamp = Get-Date -AsUTC -Format s
-              version = "${{ needs.build.outputs.version }}"
-              imageUrl = "https://kookxiang.github.io/jellyfin-plugin-bangumi/poster.png"
-          } | ConvertTo-Json -Compress | Out-File "jellyfin/meta.json" -Encoding UTF8 -NoNewline
-      - name: Pack Jellyfin Plugin
-        run: zip -9j Jellyfin.Plugin.Bangumi.zip jellyfin/*.dll jellyfin/meta.json
-      - name: Copy DLLs
-        run: |
-          cp jellyfin/Jellyfin.Plugin.Bangumi.dll .
-          cp emby/Emby.Plugin.Bangumi.dll .
-      - name: Upload to Release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: "${{ github.token }}"
-          tag: ci
-          prerelease: true
-          overwrite: true
-          file_glob: true
-          file: "*.Plugin.Bangumi.{dll,zip}"
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --configuration Release --no-build Jellyfin.Plugin.Bangumi.Test

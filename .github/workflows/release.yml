@@ -1,12 +1,9 @@
-name: Jellyfin Plugin Release
+name: Jellyfin Plugin Stable Release
 
 on:
   release:
     types:
-      - created
-      - edited
-      - prereleased
-      - released
+      - published
 
 permissions:
   contents: write
@@ -15,168 +12,164 @@ permissions:
   pages: write
 
 concurrency:
-  group: release-${{ github.ref_name }}
-  cancel-in-progress: true
+  group: stable-release
+  cancel-in-progress: false
 
 jobs:
   build:
-    name: Build Release Package
+    name: Build Stable Release
+    if: github.event.release.prerelease == false
     runs-on: ubuntu-latest
     outputs:
       abi-version: ${{ steps.abi-version.outputs.version }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Patch version
-        run: sed -i "/Version/s/>.*</>${{ github.ref_name }}.0</" Directory.Build.props
+      - name: Validate four-part version
+        id: version
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+            throw "Release tag must be a four-part version such as 1.7.6.100"
+          }
+          "version=$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+      - name: Patch assembly version
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $path = 'Directory.Build.props'
+          $content = Get-Content $path -Raw
+          $content = $content -replace '<Version>[^<]+</Version>', "<Version>$env:VERSION</Version>"
+          $content = $content -replace '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$env:VERSION</AssemblyVersion>"
+          $content = $content -replace '<FileVersion>[^<]+</FileVersion>', "<FileVersion>$env:VERSION</FileVersion>"
+          Set-Content $path $content -Encoding utf8NoBOM
       - name: Setup .NET 9.x
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9
+          dotnet-version: 9.x
       - name: Restore NuGet Packages
         run: dotnet restore
-      - name: .NET Publish
-        run: dotnet publish --configuration Release --output publish Jellyfin.Plugin.Bangumi
+      - name: Test
+        run: dotnet test --configuration Release Jellyfin.Plugin.Bangumi.Test
+      - name: Publish Jellyfin Plugin
+        run: dotnet publish --configuration Release --no-restore --output publish Jellyfin.Plugin.Bangumi
       - name: Resolve Target ABI Version
         id: abi-version
         shell: pwsh
         run: |
-          $dll = Get-ChildItem -Path ~/.nuget/packages/jellyfin.controller -Filter "MediaBrowser.Controller.dll" -Recurse | Select-Object -First 1
+          $dll = Get-ChildItem -Path ~/.nuget/packages/jellyfin.controller -Filter 'MediaBrowser.Controller.dll' -Recurse | Select-Object -First 1
           $version = [System.Reflection.AssemblyName]::GetAssemblyName($dll.FullName).Version.ToString()
-          echo "version=$version" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
       - name: Generate Jellyfin Plugin Metadata
         shell: pwsh
         env:
           CHANGELOG: ${{ github.event.release.body }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ABI_VERSION: ${{ steps.abi-version.outputs.version }}
         run: |
           @{
-              category = "Metadata"
-              changelog = $env:CHANGELOG
-              description = "Jellyfin bgm.tv 数据源插件，用于拉取中文番剧信息及图片。"
-              guid = "41b59f1b-a6cf-474a-b416-785379cbd856"
-              name = "Bangumi"
-              overview = "bgm.tv metadata provider for Jellyfin"
-              owner = "kookxiang"
-              targetAbi = "${{ steps.abi-version.outputs.version }}"
-              timestamp = Get-Date -AsUTC -Format s
-              version = "${{ github.ref_name }}.0"
-              imageUrl = "https://kookxiang.github.io/jellyfin-plugin-bangumi/poster.png"
-          } | ConvertTo-Json -Compress | Out-File "publish/meta.json" -Encoding UTF8 -NoNewline
-      - name: Create Release Artifact
+            category = 'Metadata'
+            changelog = $env:CHANGELOG
+            description = 'Jellyfin bgm.tv 数据源插件，增加 Bangumi 到 Jellyfin 的单向已看同步。'
+            guid = '41b59f1b-a6cf-474a-b416-785379cbd856'
+            name = 'Bangumi'
+            overview = 'bgm.tv metadata provider and watched-state sync for Jellyfin'
+            owner = 'atwist227'
+            targetAbi = $env:ABI_VERSION
+            timestamp = Get-Date -AsUTC -Format s
+            version = $env:VERSION
+            imageUrl = 'https://atwist227.github.io/jellyfin-plugin-bangumi/poster.png'
+          } | ConvertTo-Json -Compress | Out-File 'publish/meta.json' -Encoding utf8NoBOM -NoNewline
+      - name: Create Jellyfin Plugin Package
         run: zip -9j Jellyfin.Plugin.Bangumi.zip publish/*.dll publish/meta.json
-      - uses: actions/upload-artifact@v4
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: Jellyfin.Plugin.Bangumi
-          path: Jellyfin.Plugin.Bangumi.zip
-      - name: .NET Publish (Emby)
-        run: dotnet publish --configuration Release --output publish Emby.Plugin.Bangumi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Emby.Plugin.Bangumi
-          path: publish/Emby.Plugin.Bangumi.dll
+          name: stable-plugin
+          path: |
+            Jellyfin.Plugin.Bangumi.zip
+            poster.png
+
   upload:
-    name: Upload to GitHub Release
-    runs-on: ubuntu-latest
+    name: Attach Package to Release
     needs: build
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: Jellyfin.Plugin.Bangumi
-      - uses: actions/download-artifact@v4
-        with:
-          name: Emby.Plugin.Bangumi
-      - name: Upload to Release
+          name: stable-plugin
+      - name: Upload package
         uses: svenstaro/upload-release-action@v2
         with:
-          repo_token: "${{ github.token }}"
-          tag: ${{ github.ref_name }}
+          repo_token: ${{ github.token }}
+          tag: ${{ needs.build.outputs.version }}
           overwrite: true
-          file_glob: true
-          file: "*.Plugin.Bangumi.{dll,zip}"
+          file: Jellyfin.Plugin.Bangumi.zip
+
   repository:
-    name: Update Plugin Repository
-    runs-on: ubuntu-latest
+    name: Build Stable Plugin Repository
     needs: [build, upload]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: Jellyfin.Plugin.Bangumi
-      - name: Create Plugin Repository for Jellyfin
+          name: stable-plugin
+      - name: Create repository.json and retain custom stable history
         shell: pwsh
         env:
           CHANGELOG: ${{ github.event.release.body }}
-          TOKEN: ${{ github.token }}
-          VERSION: ${{ github.ref_name }}.0
+          VERSION: ${{ needs.build.outputs.version }}
           ABI_VERSION: ${{ needs.build.outputs.abi-version }}
         run: |
-          $Repository = Invoke-WebRequest https://jellyfin-plugin-bangumi.kookxiang.dev/repository.json | % Content | ConvertFrom-Json
-          New-Item -ItemType Directory -Force -Path Release
-          $Repository[0].versions = $Repository[0].versions | Where-Object { $_.version -ne $env:VERSION }
-          foreach ($Version in $Repository[0].versions) {
-            # 历史原因，为 1.7.3 和 1.7.4 补充 targetAbi 字段
-            if ([string]::IsNullOrEmpty($Version.targetAbi)) {
-              $Version.targetAbi = "10.10.0.0"
-            }
-            Invoke-WebRequest -Uri $Version.sourceUrl -OutFile "Release/$($Version.version).zip"
-            $Version.sourceUrl = "https://kookxiang.github.io/jellyfin-plugin-bangumi/$($Version.version).zip"
+          New-Item -ItemType Directory -Force -Path Release | Out-Null
+          $previousVersions = @()
+          try {
+            $repository = Invoke-RestMethod 'https://atwist227.github.io/jellyfin-plugin-bangumi/repository.json'
+            $previousVersions = @($repository[0].versions | Where-Object { $_.version -ne $env:VERSION })
+          } catch {
+            Write-Host 'No previous custom repository found; creating the first stable history.'
           }
-          Copy-Item -Path Jellyfin.Plugin.Bangumi.zip -Destination Release/$($env:VERSION).zip -Recurse
-          Invoke-WebRequest -Uri https://raw.githubusercontent.com/kookxiang/jellyfin-plugin-bangumi/refs/heads/master/poster.png -OutFile Release/poster.png
-          ConvertTo-Json -Compress -Depth 5 @(@{
-            category = "Metadata"
-            description = "bgm.tv metadata provider for Jellyfin"
-            guid = "41b59f1b-a6cf-474a-b416-785379cbd856"
-            name = "Bangumi"
-            overview = "Jellyfin bgm.tv 数据源插件，用于拉取中文番剧信息及图片。"
-            imageUrl = "https://kookxiang.github.io/jellyfin-plugin-bangumi/poster.png"
-            owner = "kookxiang"
-            versions = @(@{
-              checksum =  (Get-FileHash -Algorithm MD5 "Jellyfin.Plugin.Bangumi.zip").Hash.ToLower()
-              changelog = $env:CHANGELOG
-              targetAbi = $env:ABI_VERSION
-              sourceUrl = "https://kookxiang.github.io/jellyfin-plugin-bangumi/$($env:VERSION).zip"
-              timestamp = Get-Date -AsUTC -Format s
-              version = $env:VERSION
-              imageUrl = "https://kookxiang.github.io/jellyfin-plugin-bangumi/poster.png"
-            }) + $Repository[0].versions
-          }) | Out-File Release/repository.json -Encoding UTF8NoBOM -NoNewline
-      - name: Generate GitHub Pages Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: plugin-repository
-          path: Release/*
-          retention-days: 1
-  deploy-github-pages:
-    name: Deploy to GitHub Pages
-    runs-on: ubuntu-latest
-    needs: repository
-    steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: plugin-repository
-          path: pages
-      - name: Repack Artifact for GitHub Pages
+          foreach ($previous in $previousVersions) {
+            Invoke-WebRequest -Uri $previous.sourceUrl -OutFile "Release/$($previous.version).zip"
+          }
+          Copy-Item Jellyfin.Plugin.Bangumi.zip "Release/$env:VERSION.zip"
+          Copy-Item poster.png Release/poster.png
+          $current = @{
+            checksum = (Get-FileHash -Algorithm MD5 Jellyfin.Plugin.Bangumi.zip).Hash.ToLowerInvariant()
+            changelog = $env:CHANGELOG
+            targetAbi = $env:ABI_VERSION
+            sourceUrl = "https://atwist227.github.io/jellyfin-plugin-bangumi/$env:VERSION.zip"
+            timestamp = Get-Date -AsUTC -Format s
+            version = $env:VERSION
+            imageUrl = 'https://atwist227.github.io/jellyfin-plugin-bangumi/poster.png'
+          }
+          @(@{
+            category = 'Metadata'
+            description = 'bgm.tv metadata provider and watched-state sync for Jellyfin'
+            guid = '41b59f1b-a6cf-474a-b416-785379cbd856'
+            name = 'Bangumi'
+            overview = 'Jellyfin bgm.tv 数据源插件，增加 Bangumi 到 Jellyfin 的单向已看同步。'
+            imageUrl = 'https://atwist227.github.io/jellyfin-plugin-bangumi/poster.png'
+            owner = 'atwist227'
+            versions = @($current) + $previousVersions
+          }) | ConvertTo-Json -Compress -Depth 6 | Out-File Release/repository.json -Encoding utf8NoBOM -NoNewline
+      - name: Upload Pages content
         uses: actions/upload-pages-artifact@v3
         with:
-          path: pages/
-      - name: Deploy
-        uses: actions/deploy-pages@v4
-  deploy-cloudflare-pages:
-    name: Depoly to Cloudflare Pages
-    runs-on: ubuntu-latest
+          path: Release/
+
+  deploy-pages:
+    name: Deploy GitHub Pages
     needs: repository
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: plugin-repository
-          path: pages
-      - name: Replace URL
-        run: sed -i "s|https://kookxiang.github.io/jellyfin-plugin-bangumi/|https://jellyfin-plugin-bangumi.kookxiang.dev/|g" pages/repository.json
       - name: Deploy
-        uses: cloudflare/wrangler-action@v3
-        with:
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy pages --project-name=jellyfin-plugin-bangumi
+        id: deployment
+        uses: actions/deploy-pages@v4

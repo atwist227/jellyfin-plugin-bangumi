@@ -489,6 +489,26 @@ public partial class BangumiApi
         return await Get<DataList<EpisodeCollectionInfo>>($"{BaseUrl}/v0/users/-/collections/{subjectId}/episodes?episode_type={episodeType}", accessToken, token, false);
     }
 
+    public async Task<DataList<EpisodeCollectionInfo>?> GetEpisodeCollectionInfo(string accessToken, int subjectId, CancellationToken token)
+    {
+        return await Get<DataList<EpisodeCollectionInfo>>($"{BaseUrl}/v0/users/-/collections/{subjectId}/episodes?limit=1000", accessToken, token, false);
+    }
+
+    public async Task<DataList<SubjectCollectionInfo>?> GetUserCollections(
+        string accessToken,
+        string userName,
+        int limit,
+        int offset,
+        CancellationToken token)
+    {
+        var escapedUserName = Uri.EscapeDataString(userName);
+        return await Get<DataList<SubjectCollectionInfo>>(
+            $"{BaseUrl}/v0/users/{escapedUserName}/collections?subject_type={(int)SubjectType.Anime}&limit={limit}&offset={offset}",
+            accessToken,
+            token,
+            false);
+    }
+
     public async Task UpdateCollectionStatus(string accessToken, int subjectId, CollectionType type, CancellationToken token, bool isPrivate = false)
     {
         await Post($"{BaseUrl}/v0/users/-/collections/{subjectId}", new JsonContent(new CollectionStatus { Type = type, Private = isPrivate ? true : null }), accessToken, token);

@@ -13,6 +13,12 @@ public class SubjectCollectionInfo
     [JsonPropertyName("type")]
     public CollectionType Status { get; set; }
 
+    [JsonPropertyName("ep_status")]
+    public int EpisodeStatus { get; set; }
+
+    [JsonPropertyName("private")]
+    public bool Private { get; set; }
+
     [JsonPropertyName("comment")]
     public string? Comment { get; set; }
 

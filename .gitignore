@@ -101,6 +101,9 @@ TestResults
 *.Cache
 ClientBin
 .idea
+.docker-test/config/
+.docker-test/cache/
+.docker-test/media/
 [Ss]tyle[Cc]op.*
 ~$*
 *.dbmdl
@@ -114,4 +117,3 @@ UpgradeLog*.XML
 
 # MonoDevelop metafiles
 MediaBrowser.Plugins.Anime.userprefs
-

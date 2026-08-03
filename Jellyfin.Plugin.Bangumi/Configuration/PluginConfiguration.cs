@@ -39,6 +39,10 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public bool ReportManualStatusChangeToBangumi { get; set; } = false;
 
+    public bool EnableReversePlaybackSync { get; set; } = true;
+
+    public int ReverseSyncFullIntervalDays { get; set; } = 7;
+
     public bool TrustExistedBangumiId { get; set; } = false;
 
     public bool UseBangumiSeasonTitle { get; set; } = true;
